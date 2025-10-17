@@ -78,38 +78,36 @@ detect_tech_stack() {
 }
 
 # ---- README GENERATOR FUNCTION (your original code + GitHub auto-detect) ----
+# ---- README GENERATOR FUNCTION ----
 generate_readme() {
-# ---- User Input ----
-read -p "Project Name: " TITLE
-read -p "One-line Description: " DESC
+  # ---- User Input ----
+  read -p "Project Name: " TITLE
+  read -p "One-line Description: " DESC
 
-# ---- Detect GitHub URL automatically ----
-if [ -f ".git/config" ]; then
-  AUTO_REPOURL=$(git config --get remote.origin.url | sed 's/^git@/https:\/\//' | sed 's/com:/com\//' | sed 's/\.git$/.git/')
-else
-  AUTO_REPOURL=""
-fi
-read -p "GitHub Repo URL (default: $AUTO_REPOURL): " REPOURL
-REPOURL=${REPOURL:-$AUTO_REPOURL}
+  # ---- Detect GitHub URL automatically ----
+  if [ -f ".git/config" ]; then
+    AUTO_REPOURL=$(git config --get remote.origin.url | sed -E 's#(git@|https://)github.com[:/](.*)#https://github.com/\2#' | sed 's/.git$//')
+  else
+    AUTO_REPOURL=""
+  fi
+  read -p "GitHub Repo URL (default: $AUTO_REPOURL): " REPOURL
+  REPOURL=${REPOURL:-$AUTO_REPOURL}
 
-read -p "Features (comma separated): " FEATURES
-read -p "Tech Stack (comma separated): " TECH
-read -p "Preview image filename (leave blank if none): " PREVIEW
-read -p "Local server command (default: python -m http.server 5500): " SERVERCMD
-SERVERCMD=${SERVERCMD:-python -m http.server 5500}
+  read -p "Features (comma separated): " FEATURES
+  read -p "Tech Stack (comma separated): " TECH
+  read -p "Preview image filename (leave blank if none): " PREVIEW
+  read -p "Local server command (default: python -m http.server 5500): " SERVERCMD
+  SERVERCMD=${SERVERCMD:-python -m http.server 5500}
 
-# ---- Generate ASCII Banner ----
-if command -v figlet >/dev/null 2>&1; then
-  BANNER=$(figlet -f slant "$TITLE")
-else
-  BANNER="$TITLE"
-fi
+  # ---- Generate ASCII Banner ----
+  if command -v figlet >/dev/null 2>&1; then
+    BANNER=$(figlet -f slant "$TITLE" 2>/dev/null || echo "$TITLE")
+  else
+    BANNER="$TITLE"
+  fi
 
-# ---- Convert repo URL to GitHub path ----
-GITHUB_PATH=$(echo "$REPOURL" | sed -E 's#https?://github.com/([^/]+)/([^/]+)(.git)?#\1/\2#')
-
-# ---- Generate README.md ----
-cat > README.md <<EOF
+  # ---- Generate README safely ----
+  cat <<EOF > README.md
 \`\`\`
 $BANNER
 \`\`\`
@@ -120,9 +118,9 @@ $DESC
 
 ## Badges
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]($REPOURL)
-[![GitHub stars](https://img.shields.io/github/stars/${GITHUB_PATH}?style=flat)]($REPOURL)
-[![Language](https://img.shields.io/github/languages/top/${GITHUB_PATH}?style=flat)]($REPOURL)
-[![Last Commit](https://img.shields.io/github/last-commit/${GITHUB_PATH}?style=flat)]($REPOURL)
+[![GitHub stars](https://img.shields.io/github/stars/${REPOURL#https://github.com/}?style=flat)]($REPOURL)
+[![Language](https://img.shields.io/github/languages/top/${REPOURL#https://github.com/}?style=flat)]($REPOURL)
+[![Last Commit](https://img.shields.io/github/last-commit/${REPOURL#https://github.com/}?style=flat)]($REPOURL)
 
 ---
 
@@ -139,13 +137,8 @@ $(if [ -n "$PREVIEW" ]; then echo "![Preview]($PREVIEW)"; else echo "_Add a scre
 ## Installation & Setup
 
 \`\`\`bash
-# Clone the repository
 git clone $REPOURL
-
-# Enter the folder
-cd $(basename "$REPOURL" .git)
-
-# List files
+cd $(basename "$REPOURL")
 ls
 \`\`\`
 
@@ -161,46 +154,31 @@ Open your browser at http://localhost:5500 (or your chosen port)
 
 ---
 
-## Usage
-
-1. Open the app in your browser
-2. Watch dynamic system logs
-3. Observe progress bar animations
-4. Enjoy the Neo-style terminal interface 😎
-
----
-
 ## Tech Stack
-$(echo "$TECH" | sed 's/,/][/g' | sed 's/^/[/' | sed 's/$/]/')
+$TECH
 
 ---
 
 ## Contributing
-
 1. Fork the repo
-2. Create a branch (`git checkout -b feature/my-feature`)
-3. Commit your changes (`git commit -m "Add feature"`)
+2. Create a branch (\`git checkout -b feature/my-feature\`)
+3. Commit your changes (\`git commit -m "Add feature"\`)
 4. Push and open a Pull Request
 
 ---
 
 ## License
-
 This project is released under the **MIT License**. See [LICENSE](LICENSE) for details.
 
 ---
 
 ## Terminal Neo-style Banner
-
-Optional terminal preview if you have figlet and lolcat installed:
-
 \`\`\`bash
 figlet "$TITLE" | lolcat
 \`\`\`
-
 EOF
 
-echo "✅ README.md generated! Open README.md to see your Neo-level masterpiece."
+  echo "✅ README.md generated successfully!"
 }
 
 # ---- PROCESS EACH SELECTED REPO ----
@@ -225,16 +203,18 @@ for repo in "${selected_repos[@]}"; do
     cd - >/dev/null
 done
 
-# ---- NOTIFICATION PHASE ----
-if [ "$generated_count" -gt 0 ]; then
-    termux-notification \
-        --title "Git Bot Complete" \
-        --content "$generated_count README.md files generated successfully ✅" \
-        --priority high
-else
-    termux-notification \
-        --title "Git Bot Complete" \
-        --content "No READMEs generated."
+# ---- SAFE NOTIFICATION ----
+if command -v termux-notification >/dev/null 2>&1; then
+  if [ "$generated_count" -gt 0 ]; then
+      termux-notification \
+          --title "Git Bot Complete" \
+          --content "$generated_count README.md files generated ✅" \
+          --priority high
+  else
+      termux-notification \
+          --title "Git Bot Complete" \
+          --content "No READMEs generated."
+  fi
 fi
 
 echo "---------------------------------------------"
